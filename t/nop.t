@@ -17,7 +17,7 @@ initdim( $b,'a',4);
 initdim( $b,'u',2);
 initdim( $b,'b',3);
 #ok((sln($a,x=>0,y=>2)**2)==$a(0,2;-)**2,'sln');
-ok((nop($a,'rotate','y',1)->(0,1))==5,'rotate');
+ok((nop($a,'rotate','y',1)->(1,0))==5,'rotate');
 ok(max (ncop($a,$b,'plus',0))==5,'ncop');
 ok((nreduce ($a,'add','y','x'))==15,'nreduce');
 #diag( "Testing PDL::Dims $PDL::Dims::VERSION, Perl $], $^X" );

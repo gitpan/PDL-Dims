@@ -1,5 +1,8 @@
 Revision history for PDL-Dims
+0.001_001 2014-2-17
+	* fixed nop
 
-0.01    Date/time
+
+0.001   2014-2-13 
         First version, released on an unsuspecting world.
 

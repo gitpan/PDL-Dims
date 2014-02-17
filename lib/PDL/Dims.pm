@@ -12,7 +12,7 @@ Version 0.01
 
 =cut
 
-our $VERSION = '0.001';
+our $VERSION = '0.001_001';
 
 use strict;
 
@@ -165,16 +165,20 @@ sub nop { # wrapper to functions like sin, exp, rotate operating on one named di
 	my $op=shift;
 	my $dim=shift;
 	#my $arg=shift; # suitably shaped second argument 
-	$self=$self->mv(didx($self,$dim),0);
-	my $res;
+	#say $self;
+	#say "dim $dim, pos ",didx($self,$dim)," ",%{$self->hdr->{$dim}};
+	my $res=$self->mv(didx($self,$dim),0);
 	if ($op eq 'rotate'){
 		my $s=shift;
-		say "schifing $s";
-		$res=$self->rotate($s);
+		#say "schifing $res by $s";
+		$res=$res->rotate($s);
+		#say "schifing $res by $s";
 	} else {
 		$res=$self->$op (@_);
 	}
-	return ($res->mv(0,didx($self,$dim)));
+	$res->sethdr($self->hdr_copy);
+	#say "self $self, op $res, mv ",$res->mv(0,didx($res,$dim));
+	return ($res->mv(0,didx($res,$dim)));
 }
 
 sub ncop { # named combine operation -- +*-/ ... 
