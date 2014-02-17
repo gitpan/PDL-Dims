@@ -12,7 +12,7 @@ Version 0.01
 
 =cut
 
-our $VERSION = '0.001_001';
+our $VERSION = '0.002';
 
 use strict;
 
@@ -24,7 +24,7 @@ use PDL::NiceSlice;
 use Storable qw(dclone);
 use PDL;
 use 5.012;
-our @EXPORT=qw(i2pos pos2i initdim idx didx dimsize dimname sln rmdim davg dinc dmin dmax nreduce nop ncop copy_dim );
+our @EXPORT=qw(i2pos pos2i initdim idx didx dimsize dimname sln rmdim davg dinc dmin dmax nreduce nop ncop copy_dim  active_slice nsqueeze);
 
 
 
@@ -37,7 +37,7 @@ sub _dimpar {
 	return unless $p;
 	my @s;
 	for my $i (@{dimname($self)}) {
-		say "name $i $p";
+		#say "name $i $p";
 		barf ("Unknown dim $i") unless (ref ($self->hdr->{$i}) eq  'HASH');
 		push @s,$self->hdr->{$i}->{$p};
 	#	say "name $i: ",$self->hdr->{$i}->{$p};
@@ -66,7 +66,7 @@ sub dimname {
 	my $self=shift;
 	my $d=shift; # dim number
 	my $n=shift; # new name
-	#die unless $self->isa('PDL');
+	barf "Not a piddle!" unless $self->isa('PDL');
 	#say keys %{$self->hdr} unless defined $d;
 	return $self->hdr->{dimnames} unless defined $d;
 	#barf "Unknown dim $d" unless (ref $self->hdr->{dimnames} eq  'HASH');
@@ -151,19 +151,81 @@ sub pos2i{
 	return rint (($i-dmin($self,$d))/(dmax($self,$d)-dmin($self,$d))*dimsize($self,$d)-0);
 }
 
+sub nsqueeze {
+	my $self=shift;
+	#my @except=@_;
+	#say $ret->info;
+	#ay $ret->info;
+	my $ret=$self->squeeze;
+	$ret->sethdr($self->hdr_copy);
+	for my $i (@{dimname($self)}) {
+		#say "keeping $i ".dimsize($self,$i) unless (dimsize($self,$i)==1);
+		#say "Removing $i ".dimsize($self,$i) if (dimsize($self,$i)==1);
+		rmdim($ret,$i)  if (dimsize($self,$i)==1);
+	}
+	#say "names: ",@{dimname($ret)};
+	#say "nsqueeze: return ",$ret->info, @{dimname($ret)};
+	return $ret;
+}
+sub active_slice { # 
+	my $self=shift;
+	my @except=@_;
+	my @idx=list (rint(pdl idx($self)));
+	#say "j  ".idx($img{$type});
+	my @n=@{dimname($self)};
+	#say "self: @n";
+	my $str;
+	my @rm;
+	for my $i (0.. $#n) {
+		unless (/$n[$i]/ ~~ @except){
+			#say "Selecting $i $n[$i] $idx[$i]";
+			push @rm,$n[$i];
+			$str.="$idx[$i]"; 
+		}
+		$str.=',' unless ($i==$#n);
+	}
+	#say "$str";
+	my $ret=$self->slice($str); #->nsqueeze;	
+	$ret->sethdr($self->hdr_copy);
+	for my $i (0.. $#n) {
+		unless (/$n[$i]/ ~~ @except){
+			#say "$i $n[$i] ".idx($self,$n[$i]);
+			dimsize($ret,$n[$i],1);
+			my $id=idx($ret,$n[$i]);
+			idx($ret,$n[$i],0);
+			vals($ret,$n[$i],0,vals($self,$n[$i],$id));
+			dmin($ret,$n[$i],vals($self,$n[$i],$id));
+			dmax($ret,$n[$i],vals($self,$n[$i],$id));
+		}
+	}
+	#say "active_slice: ",$self->info," return ",@{dimname($ret)},$ret->info;
+	return $ret;
+}
+
 sub nreduce { # analogue to PDL::Reduce, perform operation on named rather than numbered dims
 	my $self=shift;
 	my $op=shift; # operation - passed on to reduce
 	require PDL::Reduce;
-	my @d=map {didx($self,$_)} @_;
-	say "reduce $op @d (@_)";
-	return $self->reduce($op,@d);
+	my @list=@_;
+	my @d=map {didx($self,$_)} @list;
+	#say "reduce $op @d (@list)";
+	my $ret= $self->reduce($op,@d);
+	$ret->sethdr($self->hdr_copy);
+	for my $d (@list) {
+	#	say "removing $d";
+		rmdim ($ret,$d);
+	}
+	#say "nreduce: ",$ret->info, @{dimname($ret)};
+	return $ret;
 }
 
 sub nop { # wrapper to functions like sin, exp, rotate operating on one named dimension
 	my $self=shift;
 	my $op=shift;
 	my $dim=shift;
+	my @a=@_;
+	my @n=@{dimname($self)};
+	#say "nop: (self) @n";
 	#my $arg=shift; # suitably shaped second argument 
 	#say $self;
 	#say "dim $dim, pos ",didx($self,$dim)," ",%{$self->hdr->{$dim}};
@@ -174,81 +236,115 @@ sub nop { # wrapper to functions like sin, exp, rotate operating on one named di
 		$res=$res->rotate($s);
 		#say "schifing $res by $s";
 	} else {
-		$res=$self->$op (@_);
+		#say "$op, @a";
+		$res=$self->$op(@a,);
 	}
+	$res=$res->mv(0,didx($self,$dim));
 	$res->sethdr($self->hdr_copy);
 	#say "self $self, op $res, mv ",$res->mv(0,didx($res,$dim));
-	return ($res->mv(0,didx($res,$dim)));
+	#say "nop: return", $self->info,@{dimname($res)},$res->info;
+	return ($res);
 }
 
 sub ncop { # named combine operation -- +*-/ ... 
 	my $self=shift;
 	my $other=shift;
 	my $op=shift;
+	#say $self->info, $other->info;
 	my @d=@{dimname($self)};
 	my @e=@{dimname($other)};
+	#say "self @d other @e";
 	my $m=0;
-	my @nother; # new order in other
-	my @nself; # new order in self
-	my @tself; # thread dims
-	my @tother; 
+	my @nother=(); # new order in other
+	my @nself=(); # new order in self
+	my @tself=(); # thread dims
+	my @tother=(); 
+	my @aself;
+	my @aother;
 	my @add;
 	my @co=();
 	my $i=0;
 	my $j=0;
 	for my $ds (@d) {
 		my $n=didx($self,$ds);
+		#push @aself,$ds;
 		if (defined ($m=didx($other,$ds))) {
 			push @nself,$n;
 			push @nother,$m;
+		
 	#		say "$ds $m $n";
 	#		say "self $ds $m $n i $i";
 			push @co,$i+0;
+			#say "co sn @co";
 			$i++;
 		} else {
 			push @tself,$n;
 	#		say "$ds $m $n i: $i ", ($other->ndims+$i);
 			push @co,($other->ndims+$j);
+			#say "co st @co";
+			$j++;
 		}
 	}
 	for my $ds (@e) {
+		#push @other,$ds;
 		my $n=didx($other,$ds);
-		if (eval {$m=didx($self,$ds)}) {
+		if (defined ($m=didx($self,$ds))) {
 			1;
 		} else {
 			push @tother,$n;
 			push @add,$ds;
 			push @co,$i+0;
-	#		say "other $ds $m $n";
+			#say "co ot @co";
+			#say "other $ds $m $n";
 			$i++;
 		}
 	}
-	#say "@nself, @tself; other @nother, @tother.";
 	#say "Co: @co";
-	my $ns=$self->sever->reorder(@nself,@tself); 
-	my $no=$other->sever->reorder(@nother,@tother);
+	push @aother,@nother if defined ($nother[0]);
+	push @aother,@tother if defined ($tother[0]);
+	push @aself,@nself if defined ($nself[0]);
+	push @aself,@tself if defined ($tself[0]);
+	#say "@nself, @tself; other @nother, @tother.";
+	#say $self->info,$other->info;
+	#say "aother @aother aself @aself";
+	#my @tmp=map {defined $_} (@nself,@tself) ;
+	#say "defined: $tself[0], $tother[0], $nself[0], $nother[0]";
+	#say "undefined ! nself" unless (defined $nself[0]);
+	#say "undefined ! tself" unless (defined $tself[0]);
+	#say "Tmp (self): @tmp. $#tmp";
+	#unless (('' eq $tself[0])) {pop (@tmp) ; say "Pop $tself[0]";} 
+	#shift @tmp unless ('' eq ($nself[0])); 
+	#say "Tmp (self): @tmp. $#tmp";
+	my $ns=$self->sever->reorder(@aself);
+	#@tmp=(@nother,@tother);
+	#@tmp=map {defined $_} (@nself,@tself) ;
+	#(@tmp) unless (defined( $tother[0])); 
+	#@tmp unless (defined ($nother[0])); 
+	#say "Tmp (other): @tmp. $#tmp";
+	my $no=$other->sever->reorder(@aother);
 	for my $n (0..$#tother) { # fill in dummy dims
 		$ns=$ns->dummy($#nself+1,1);
 	}
-	say $ns->info,$no->info;
-	say $self->info,$other->info;
+	#say $ns->info,$no->info;
+	#say $self->info,$other->info;
 	my $res=$ns->$op($no,@_);
-	say $res->info;
+	#say $res->info;
+	$res=$res->reorder(@co);
 	$res->sethdr($self->hdr_copy);
 	#say @{dimname($res)};
-	#say @{dimname($other)};
 	#say @{dimname($self)};
-	$other->hdr;
+	#say @{dimname($other)};
+	#$other->hdr;
 	my $i=$self->ndims;
 	for my $ds (0..$#add) {
-		say $ds;
+		#say $ds;
 		copy_dim($other,$res,$add[$ds],$i);
+	#say @{dimname($res)};
 		$i++;
 	}
-	#@co=@{didx($res)};
-	#say "@co";
-	$res=$res->reorder(@co);
-	say $res->info;
+	#say @{dimname($res)};
+	#say "Co @co";
+	#say "ncop: returning ... ".$res->info;
 	return $res;
 }
 
@@ -256,25 +352,52 @@ sub sln { # returns a slice by dimnames and patterns
 	my $self=shift;
 	my %s=@_; # x=>'0:54:-2', t=>47, ... #
 	my $str;
-	#say "%s";
+	#say "sln: ".$self->hdr->{dimnames},%s;
 	#say ("dimnames @{$self->dimname}");
-	my (@n)=@{$s{names}||dimname($self)};
+	my @n=@{$s{names}||dimname($self)};
 	for my $i (0.. $#n) {
 		#say "$i $n[$i] $idx[$i]";
-
-		$str.=$s{$n[$i]} if ($s{$n[$i]});
+		$str.=$s{$n[$i]} if defined ($s{$n[$i]});
 		$str.=',' unless ($i==$#n);
 	}
-	#say $str;
-	return $self->slice($str);
+	my $ret=$self->slice($str);
+	$ret->sethdr($self->hdr_copy);
+	for my $d (@n) {
+		$str=$s{$d};
+		#say "$d $str";
+		next unless defined $str;
+		chomp $str;
+		if ($str =~/\(\s*\d+\s*\)/) {
+			rmdim ($ret,$d);
+			next;
+		}
+		$str=~m/([+-]?\d+)(:([+-]?\d+)(:([+-]?\d+))?)?/;
+		#say "$d: 1 $1 2 $2 3 $3 4 $4 5 $5";
+		my $size=int abs(($3-$1)/($5||1))+1; #
+		my $min=int min pdl($1,$3);
+		my $max=int max pdl($1,$3);
+		my $v=pdl([vals($self,$d)])->($str);
+		#say "min $min max $max size $size str $str vals $v";
+		dimsize($ret,$d,$size);
+		dmax($ret,$d,vals($self,$d,$max % dimsize($self,$d)));
+		dmin($ret,$d,vals($self,$d,$min % dimsize($self,$d)));
+		vals($ret,$d,vals($self,$d,[list $v]));
+		idx($ret,$d,sclr (pdl(idx($self,$d))->clip(dmin($ret,$d),dmax($ret,$d)))); 
+		#dimsize($ret, $n,
+	}
+	#say "sln: return ",@{dimname($ret)};
+	return $ret;
+
 }
 
 sub initdim {
 	my $self=shift;
 	my $d=shift || return ;
 	#say "Init dim $d ...";
+	$self->hdr;
+	warn "$d is defined! ".%{$self->hdr->{$d}} if (ref $self->hdr->{$d} eq  'HASH');
 	$self->hdr->{ndims}=0 unless ($self->hdr->{ndims});
-	warn "$d is defined!" if (ref $self->hdr->{$d} eq  'HASH');
+	#say keys $self->hdr->{$d};
 	my %p=@_;
 	#say "pars: ",%p;
 	$self->hdr->{$d}=\%p;
@@ -312,7 +435,7 @@ sub initdim {
 	dinc ($self,$d,$p{inc});
 	dmax ($self,$d,$p{max}); #||(dimsize($self,$d)-1)*$p{inc};
 	$self->hdr->{ndims}++; 
-	idx($self,$d,($p{index}||dmin($self,$d)));
+	idx($self,$d,($p{index}||0));#dmin($self,$d)));
 	if (ref $p{vals}) {
 		vals ($self,$d,$p{vals}); 
 	} else {
@@ -337,7 +460,8 @@ sub copy_dim {
 sub rmdim {
 	my $self=shift;
 	my $d=shift;
-	#say "removing $self, $d";
+	return unless $d;
+	#say "removing $d ".didx($self,$d);;
 	splice $self->hdr->{dimnames},didx($self,$d),1; # cut out the array
 	for my $i (didx($self,$d)..$self->hdr->{ndims}-1) { 
 		didx($self,dimname($self,$i),$i);	#update position of following dims
@@ -528,6 +652,26 @@ perform non-aggregate function on a dimension.
 
 usage:
 	$res=nop($a,$operation,@args);
+
+=head2 active_slice
+
+A conveniance function, 
+
+useage 
+
+	$slice=active_slice($piddle,@ignore);
+
+returns the current selection (as accessed by idx) as a slice. Returns full dims on supplied dim list
+
+=head2 nsqueeze
+
+A wrapper to squeeze. It makes the appropriate header updates (i.e. calls to rmdim).
+
+
+=head1 TODO
+
+Documentation! This is a quick release because several things did not work.
+
 
 =head1 AUTHOR
 
