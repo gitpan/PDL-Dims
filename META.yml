@@ -20,5 +20,6 @@ no_index:
 requires:
   Exporter: 0
   PDL: 0
+  Scalar::Util: 0
   perl: 5.012
-version: 0.002
+version: 0.004

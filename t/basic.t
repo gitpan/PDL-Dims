@@ -2,9 +2,10 @@
 use 5.012;
 use strict;
 use warnings FATAL => 'all';
-use Test::Simple tests => 5;
+use Test::Simple tests => 6;
 #use PDL;
 use PDL;
+#use lib 'lib';
 use PDL::Dims ; #qw/initdim/;
 use PDL::NiceSlice;
 
@@ -33,5 +34,5 @@ copy_dim($a,$b,'t');
 #initdim($b,'a',size=>6);
 ok (dimsize($b,'f')==2, 'another copy_dim test');
 ok (didx($b,'t')==4,'didx');
-
+ok(is_sane($b)==0,'sanity');
 #diag( "Testing PDL::Dims $PDL::Dims::VERSION, Perl $], $^X" );

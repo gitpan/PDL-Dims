@@ -19,6 +19,7 @@ WriteMakefile(
     },
     PREREQ_PM => {
     	'PDL'	=> 0,
+	'Scalar::Util' =>0,
 	'Exporter', =>0,
         #'ABC'              => 1.6,
         #'Foo::Bar::Module' => 5.0401,
