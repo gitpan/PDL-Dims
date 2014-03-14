@@ -22,4 +22,4 @@ requires:
   PDL: 0
   Scalar::Util: 0
   perl: 5.012
-version: 0.004
+version: 0.005

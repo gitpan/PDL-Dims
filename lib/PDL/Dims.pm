@@ -2,6 +2,7 @@
 
 package PDL::Dims;
 
+
 =head1 NAME
 
 PDL::Dims - work on named dimensions and meaningful ranges
@@ -12,7 +13,7 @@ Version 0.01
 
 =cut
 
-our $VERSION = '0.004';
+our $VERSION = '0.005';
 
 use strict;
 
@@ -82,9 +83,10 @@ sub _dimpar {
 	my @s;
 	for my $i (@{dimname($self)}) {
 		#say "name $i $p";
+		#next unless chomp $i;
+		#say "name $i: ",$self->hdr->{$i}->{$p};
 		barf ("Unknown dim $i") unless (ref ($self->hdr->{$i}) eq  'HASH');
 		push @s,$self->hdr->{$i}->{$p};
-	#	say "name $i: ",$self->hdr->{$i}->{$p};
 	}
 	#say "Dims ".@{dimname($self)}."Par $p: @s";
 	return @s;
@@ -96,6 +98,7 @@ sub dnumeric {
 	my $v=shift;
 	return [_dimpar($self,'num')] if (!$d and wantarray);
 	return [_dimpar($self,'num')] unless ($d);
+	barf ("Unknown dim $d") unless (ref ($self->hdr->{$d}) eq  'HASH');
 	#warn "numeric? $d $v.", $self->hdr->{num} ;#if ($d eq 'a' and $v==1);
 	#barf "numeric? $d $v!", $self->hdr->{num} if ($d eq 'a' and $v==1);
 	if (defined $v) {
@@ -115,10 +118,9 @@ sub spacing {
 	my $d=shift; # dimname
 	my $v=shift; # value
 	return [_dimpar($self,'spacing')] if (!$d and wantarray);
-	return [_dimpar($self,'spacing')]
-	unless ($d) ;
+	return [_dimpar($self,'spacing')] unless ($d) ;
+	barf ("Unknown dim $d") unless (ref ($self->hdr->{$d}) eq  'HASH');
 	if (defined $v) {
-		barf ("Unknown dim $d") unless (ref ($self->hdr->{$d}) eq  'HASH');
 		int $v;
 		$self->hdr->{$d}->{spacing}=$v; 
 	}
@@ -157,8 +159,8 @@ sub is_sane {
 			#say pos2i($self,$n,i2pos($self,$n,dimsize($self,$n)-1))," 1";
 			#say (dimsize($self,$n) , 1+
 				#pos2i($self,$n,i2pos($self,$n,dimsize($self,$n)-1)));
-			return "pos ".$n unless (dimsize($self,$n)-1 == pop[
-				pos2i($self,$n,i2pos($self,$n,dimsize($self,$n)-1))]);
+			return "pos ".$n unless (dimsize($self,$n)-1 == @{
+				pos2i($self,$n,i2pos($self,$n,dimsize($self,$n)-1))}-[-1]);
 		}
 	}
 	return 0;
@@ -167,12 +169,14 @@ sub dimsize { # sets size for a dim
 	my $self=shift;
 	my $d=shift; # dimname
 	my $v=shift; # value
+	say "return all ", _dimpar($self,'size') if (!$d and wantarray);
 	return _dimpar($self,'size') if (!$d and wantarray);
 	return #([values %{$self->hdr->{dimsize}}]
 #		,[keys %{$self->hdr->{dimsize}}],
 		#)
 		[_dimpar($self,'size')]
 	unless ($d) ;
+	barf ("Unknown dim $d") unless (ref ($self->hdr->{$d}) eq  'HASH');
 	#say "size $d $v",$self->info;
 	if (defined $v) {
 		barf ("Unknown dim $d") unless (ref ($self->hdr->{$d}) eq  'HASH');
@@ -192,7 +196,7 @@ sub dimname {
 	return @{$self->hdr->{dimnames}} if (! defined ($d) and wantarray);
 	return $self->hdr->{dimnames} unless defined $d;
 	#barf "Unknown dim $d" unless (ref $self->hdr->{dimnames} eq  'HASH');
-	$self->hdr->{dimnames}->[$d]=$n if defined $n;
+	$self->hdr->{dimnames}->[$d]=$n if $n;
 	return $self->hdr->{dimnames}->[$d];
 }
 
@@ -249,18 +253,233 @@ sub didx { # set/get index - complementary to dimname
 	} else {
 		my $n=shift; # new position
 		return (undef) if (ref $self->hdr->{$d} ne  'HASH');
-		#barf "Unknown dim $d" unless (ref $self->hdr->{$d} eq  'HASH');
+		barf "Unknown dim $d" unless (ref $self->hdr->{$d} eq  'HASH');
 		$self->hdr->{$d}->{pos}=$n if defined $n;
 		#say "type $self idx $d ".$self->hdr->{$d}->{pos};
 		return $self->hdr->{$d}->{pos};
 	}
 }
 
+sub initdim {
+	my $self=shift;
+	my $d=shift || return ; # name
+	#say "Init dim $d ...";
+	$self->hdr; #ensure the header is intialised.
+	my %p=@_;
+	for my $k (keys %p) {
+		barf "Unkown parameter $k" unless ($k ~~ @keys);
+	}
+	#say "header: ",(keys %{$self->gethdr},);
+	if (ref $self->hdr->{$d} eq  'HASH'){ # dimname exists and is a hash
+		my $n= didx($self,$d);
+		if (defined $n) {
+			$p{pos}=$n; #just to make sure
+			barf "$d exists at pos $n! (".%{$self->hdr->{$d}}."\n";
+		} else {	
+			#say (keys (%{$self->hdr->{$d}}),'-keys');
+			warn "$d is defined but not a dim! ",%{$self->hdr->{$d}};
+		}
+	} else {
+		$self->hdr->{ndims}=0 unless ($self->hdr->{ndims});
+		#say keys $self->hdr->{$d};
+		#say "pars: ",%p;
+		$self->hdr->{$d}=\%p;
+		#say "Creating dim $d at pos. $p{pos}; Ndims ".$self->hdr->{ndims};
+		if ((not $p{pos}) or ($p{pos}>$self->hdr->{ndims})) {
+			$p{pos}=$self->hdr->{ndims};
+		}
+		if ($p{pos}<$self->hdr->{ndims}) {
+			for (my $i=$self->hdr->{ndims}-1;$i>=$p{pos};$i--) {
+				dimname($self,$i,dimname($self,$i-1)); # shift the position up!
+				didx($self,dimname($self,$i-1),$i);
+			}		
+		}
+		didx ($self,$d,$p{pos});
+		$self->hdr->{$d}=\%p;
+		dimname ($self,$p{pos},$d);
+	}
+	$p{size}=$self->dim($p{pos}) unless ($p{size});
+	warn "Size does not mnatch piddle dim $p{size} ",$self->dim($p{pso}) 
+		unless ($p{size}==$self->dim($p{pos}));  
+	dimsize ($self,$d,($p{size}||1));
+	spacing($self,$d,1) unless defined spacing($self,$d);
+	#say "P: ",%p;
+	#say "Dim $d: ",ref $p{vals},"; ",%p;
+	#say "Dim $d: ",@{$p{vals}} if (ref $p{vals}); #,"; ",@{$p{vals}};
+		#say "Set values $d",ref($p{vals});
+	if (ref ($p{vals}) eq 'ARRAY') {# or (dimsize($self,$d) == 1 and defined $p{val})) {# and !spacing($self,$d)) {
+		#say "Set values $d";
+		my @v=@{$p{vals}};
+		#say "Values: @v";
+		#barf "Wrong size of values list! $d " unless ($#{$p{vals}}==dimsize($self,$d)-1);
+		vals ($self,$d,$p{vals}); 
+		#warn "numeric $d" ,dnumeric($self,$d);#,($p{num}||1));
+		#dmin($self,$d,vals($self,$d,0));
+		#dmax($self,$d,vals($self,$d,dimsize($self,$d)));
+	}
+	unless (spacing($self,$d)){
+		#barf "$d !";
+	} else {
+		#say "equal spaced, numeric values $d";
+		$p{num}=1 unless defined $p{num};
+		if ($p{inc} and $p{max}) {
+			barf ("Increment and maximum don't fit! ($d $p{min} $p{max} $p{inc} "
+				.dimsize($self,$d))
+				unless (approx(pdl ($p{max}-$p{min}) , pdl((dimsize($self,$d)-1)*$p{inc} )));
+		} elsif ($p{inc}) {
+			$p{max}=$p{inc}*dimsize($self,$d)+$p{min};
+		} elsif ($p{max}) {
+			$p{inc}=($p{max}-$p{min})/((dimsize($self,$d)-1)||1);
+		} else {
+			$p{max}=dimsize($self,$d)-1;
+			$p{inc}=1;
+		}
+		dmin ($self,$d,$p{min}||0);
+		dinc ($self,$d,$p{inc});
+		dmax ($self,$d,$p{max}); #||(dimsize($self,$d)-1)*$p{inc};
+		spacing($self,$d,1);
+		dnumeric($self,$d,);
+	}
+	$self->hdr->{ndims}++; 
+	idx($self,$d,($p{index}||0));#dmin($self,$d)));
+	my $res=$self;
+	if ($p{dummy} ) { # insert dummy dimension of size size at pos.
+		say "dummy: $p{pos} $p{size}";
+		$res=$res->dummy($p{pos},$p{size});
+	}
+	$res->sethdr($self->hdr_copy);
+	return $res;
+	#say "Done. ($d)";
+}
+
+sub copy_dim {
+	my $old=shift;
+	my $new=shift;
+	my $dim=shift;
+	return unless $dim;
+	
+	#initdim($new,'dummy');
+	#say "old: $old; new: $new; dim: $dim";
+	my $d=dclone($old->hdr->{$dim});
+	#say "old $old new $new dim %$d";
+	#say "Copy to new: ",@{dimname $new};
+	#say %$d;
+	$$d{pos}=shift;
+	initdim($new,$dim,%$d);
+}
+
+sub rmdim {
+	my $self=shift;
+	my $d=shift;
+	return unless defined $d;
+	#say "removing $d ".didx($self,$d);;
+	splice @{$self->hdr->{dimnames}},didx($self,$d),1; # cut out the array
+	for my $i (didx($self,$d)..$self->hdr->{ndims}-1) { 
+		didx($self,dimname($self,$i),$i);	#update position of following dims
+	}
+	delete $self->hdr->{$d};
+	die "This should be undefined! ",$self->hdr->{$d} if defined ($self->hdr->{$d});
+	$self->hdr->{ndims}--;
+}
+
+sub unit {
+	#my $self=shift;
+	my $self=shift;
+	die "I don't have data to work on (unit)" unless defined $self->hdr;
+	#say "$self type array ";
+	my $index=shift;
+	return _dimpar($self,'unit') if (! defined ($index) and wantarray);
+	return [_dimpar($self,'unit')] unless defined $index;
+	barf ("Unknown dim $index") unless (ref ($self->hdr->{$index}) eq  'HASH');
+	if (defined (my $v=shift)) {
+		$self->hdr->{$index}->{unit}=$v ;
+	}
+	return $self->hdr->{$index}->{unit}; 
+}
+
+sub idx {
+	#my $self=shift;
+	my $self=shift;
+	barf "I don't have data to work on (idx)" unless defined $self->hdr;
+	#say "$self type array ";
+	my $index=shift;
+	return _dimpar($self,'index') if (! defined ($index) and wantarray);
+	return [_dimpar($self,'index')] unless defined $index;
+	barf ("Unknown dim $index") unless (ref ($self->hdr->{$index}) eq  'HASH');
+	if (defined (my $v=shift)) {
+		$v<0? 0: $v;
+		$v>=dimsize($self,$index)? dimsize($self,$index)-1 : $v;
+		$self->hdr->{$index}->{index}=$v ;
+	}
+	return $self->hdr->{$index}->{index}; 
+}
+
+sub vals { #individual values of dims -- like the position along an axis in world coords., echo times
+	my $self=shift;
+	my $d=shift; #dim
+	return unless $d;
+	$self->hdr->{$d}->{vals}=[] unless defined $self->hdr->{$d}->{vals};
+	#say "Vals: $d ",@{$self->hdr->{$d}->{vals}};
+	my $i=shift; #index or array ref
+	if (defined $i) { # set the whole array or access individual points
+		#say "vals: $d $i";
+		if (ref $i eq 'ARRAY' and dimsize($self,$d) == $#{$i}+1) { #ref to values array
+			barf "Array size does not match dimsize" unless ($#$i==dimsize($self,$d)-1);
+			$self->hdr->{$d}->{vals}=$i ;
+			spacing ($self,$d,0); #->hdr->{$d}->{spacing}=0;
+			$self->hdr->{$d}->{inc}=undef;
+			for (vals($self,$d)) {looks_like_number $_ || dnumeric($self,$d,0);} 
+
+			if (dnumeric($self,$d)){
+				barf "not numeric @$i" if ($$i[0] eq 'a');
+				dmin($self,$d,min(pdl $i));
+				dmax($self,$d,max(pdl $i));
+			} else {
+				$self->hdr->{$d}->{max}=undef;
+				$self->hdr->{$d}->{min}=undef;
+			}
+			#say "$d: setting vals @$i";
+		} else { #individual values 
+			my $v=shift; #value
+			if ( defined $v) { 
+				$self->hdr->{$d}->{vals}->[$i]=$v ;
+				spacing ($self,$d,0); #->hdr->{$d}->{spacing}=0;
+				$self->hdr->{$d}->{inc}=undef;
+				for (vals($self,$d)) {looks_like_number $_ || dnumeric($self,$d,0);} 
+				if (dnumeric($self,$d)){
+				#barf "not numeric $i" if ($i eq 'a');
+					dmin($self,$d,min(pdl $i));
+					dmax($self,$d,max(pdl $i));
+				} else {
+					$self->hdr->{$d}->{max}=undef;
+					$self->hdr->{$d}->{min}=undef;
+				}
+			}
+			if (spacing($self,$d)) {
+				return dmin($self,$d)+$i*dinc($self,$d);
+			}
+			return $self->hdr->{$d}->{vals}->[$i];
+		}
+	#} else {
+	}
+	if (spacing($self,$d)) {
+		return (list (dmin($self,$d)+dinc($self,$d)*sequence(dimsize($self,$d)))) if (wantarray);
+		return [list (dmin($self,$d)+dinc($self,$d)*sequence(dimsize($self,$d)))] unless wantarray;
+	}
+	if (wantarray) {
+	return @{$self->hdr->{$d}->{vals}};
+	} else {
+	return $self->hdr->{$d}->{vals};
+	}
+}
+
+
 #transformations between piddle and world coords. 
 sub i2pos{
 	my $self=shift; # dataset
 	my $d=shift || return; # dimname
 	my $i=shift ; #value
+	barf "Unknown dim $d" unless (ref $self->hdr->{$d} eq  'HASH');
 	$i=idx($self,$d) unless (defined $i);
 	if (spacing($self,$d)) {
 		return $i*dinc($self,$d)+dmin($self,$d); 
@@ -273,8 +492,9 @@ sub pos2i{
 	my $self=shift;
 	(my $d=shift) || return;
 	my $i=shift ; # value
+	barf "Unknown dim $d" unless (ref $self->hdr->{$d} eq  'HASH');
 	if (spacing($self,$d)) {
-		return rint (dmin($self,$d)+$i*dinc($self,$d)); 
+		return rint (($i-dmin($self,$d))/dinc($self,$d)); 
 	} else {
 		#say "searching for $i ",$self->hdr->{$d}->{num},".";
 		#say "Num? ",dnumeric($self,$d,undef);
@@ -347,6 +567,7 @@ sub active_slice { #
 	my @idx=list (rint(pdl idx($self)));
 	#say "j  ".idx($img{$type});
 	my @n=@{dimname($self)};
+	barf "not consistent size $#n ",$self->ndims-1 unless ($#n==$self->ndims-1);
 	#say "self: @n";
 	my $str;
 	my @rm;
@@ -358,7 +579,7 @@ sub active_slice { #
 		}
 		$str.=',' unless ($i==$#n);
 	}
-	#say "$str";
+	say "$str ",$self->info;
 	my $ret=$self->slice($str); #->nsqueeze;	
 	$ret+=0;
 	$ret->sethdr($self->hdr_copy);
@@ -606,217 +827,6 @@ sub sln { # returns a slice by dimnames and patterns
 	#say "sln: return ",@{dimname($ret)};
 	return $ret;
 
-}
-
-sub initdim {
-	my $self=shift;
-	my $d=shift || return ;
-	#say "Init dim $d ...";
-	$self->hdr; #ensure the header is intialised.
-	my %p=@_;
-	for my $k (keys %p) {
-		barf "Unkown parameter $k" unless ($k ~~ @keys);
-	}
-	#say "header: ",(keys %{$self->gethdr},);
-	if (ref $self->hdr->{$d} eq  'HASH'){ # dimname exists and is a hash
-		my $n= didx($self,$d);
-		if (defined $n) {
-			$p{pos}=$n; #just to make sure
-			barf "$d exists at pos $n!\n";
-		} else {	
-			#say (keys (%{$self->hdr->{$d}}),'-keys');
-			barf "$d is defined but not a dim! ",%{$self->hdr->{$d}};
-		}
-	} else {
-		$self->hdr->{ndims}=0 unless ($self->hdr->{ndims});
-		#say keys $self->hdr->{$d};
-		#say "pars: ",%p;
-		$self->hdr->{$d}=\%p;
-		#say "Creating dim $d at pos. $p{pos}; Ndims ".$self->hdr->{ndims};
-		if ((not $p{pos}) or ($p{pos}>$self->hdr->{ndims})) {
-			$p{pos}=$self->hdr->{ndims};
-		}
-		if ($p{pos}<$self->hdr->{ndims}) {
-			for (my $i=$self->hdr->{ndims}-1;$i>=$p{pos};$i--) {
-				dimname($self,$i,dimname($self,$i-1)); # shift the position up!
-				didx($self,dimname($self,$i-1),$i);
-			}		
-		}
-		didx ($self,$d,$p{pos});
-		$self->hdr->{$d}=\%p;
-		dimname ($self,$p{pos},$d);
-	}
-	$p{size}=$self->dim($p{pos}) unless ($p{size});
-	warn "Size does not mnatch piddle dim $p{size} ",$self->dim($p{pso}) 
-		unless ($p{size}==$self->dim($p{pos}));  
-	dimsize ($self,$d,($p{size}||1));
-	spacing($self,$d,1) unless defined spacing($self,$d);
-	#say "P: ",%p;
-	#say "Dim $d: ",ref $p{vals},"; ",%p;
-	#say "Dim $d: ",@{$p{vals}} if (ref $p{vals}); #,"; ",@{$p{vals}};
-		#say "Set values $d",ref($p{vals});
-	if (ref ($p{vals}) eq 'ARRAY') {# or (dimsize($self,$d) == 1 and defined $p{val})) {# and !spacing($self,$d)) {
-		#say "Set values $d";
-		my @v=@{$p{vals}};
-		#say "Values: @v";
-		#barf "Wrong size of values list! $d " unless ($#{$p{vals}}==dimsize($self,$d)-1);
-		vals ($self,$d,$p{vals}); 
-		#warn "numeric $d" ,dnumeric($self,$d);#,($p{num}||1));
-		#dmin($self,$d,vals($self,$d,0));
-		#dmax($self,$d,vals($self,$d,dimsize($self,$d)));
-	}
-	unless (spacing($self,$d)){
-		#barf "$d !";
-	} else {
-		#say "equal spaced, numeric values $d";
-		$p{num}=1 unless defined $p{num};
-		if ($p{inc} and $p{max}) {
-			barf ("Increment and maximum don't fit! ($d $p{min} $p{max} $p{inc} "
-				.dimsize($self,$d))
-				unless (approx(pdl ($p{max}-$p{min}) , pdl((dimsize($self,$d)-1)*$p{inc} )));
-		} elsif ($p{inc}) {
-			$p{max}=$p{inc}*dimsize($self,$d)+$p{min};
-		} elsif ($p{max}) {
-			$p{inc}=($p{max}-$p{min})/((dimsize($self,$d)-1)||1);
-		} else {
-			$p{max}=dimsize($self,$d)-1;
-			$p{inc}=1;
-		}
-		dmin ($self,$d,$p{min}||0);
-		dinc ($self,$d,$p{inc});
-		dmax ($self,$d,$p{max}); #||(dimsize($self,$d)-1)*$p{inc};
-		spacing($self,$d,1);
-		dnumeric($self,$d,);
-	}
-	$self->hdr->{ndims}++; 
-	idx($self,$d,($p{index}||0));#dmin($self,$d)));
-	my $res=$self;
-	if ($p{dummy} ) { # insert dummy dimension of size size at pos.
-		say "dummy: $p{pos} $p{size}";
-		$res=$res->dummy($p{pos},$p{size});
-	}
-	$res->sethdr($self->hdr_copy);
-	return $res;
-	#say "Done. ($d)";
-}
-
-sub copy_dim {
-	my $old=shift;
-	my $new=shift;
-	my $dim=shift;
-	return unless $dim;
-	
-	#initdim($new,'dummy');
-	#say "old: $old; new: $new; dim: $dim";
-	my $d=dclone($old->hdr->{$dim});
-	#say "old $old new $new dim %$d";
-	#say "Copy to new: ",@{dimname $new};
-	#say %$d;
-	$$d{pos}=shift;
-	initdim($new,$dim,%$d);
-}
-
-sub rmdim {
-	my $self=shift;
-	my $d=shift;
-	return unless defined $d;
-	#say "removing $d ".didx($self,$d);;
-	splice $self->hdr->{dimnames},didx($self,$d),1; # cut out the array
-	for my $i (didx($self,$d)..$self->hdr->{ndims}-1) { 
-		didx($self,dimname($self,$i),$i);	#update position of following dims
-	}
-	delete $self->hdr->{$d};
-	die "This should be undefined! ",$self->hdr->{$d} if defined ($self->hdr->{$d});
-	$self->hdr->{ndims}--;
-}
-
-sub unit {
-	#my $self=shift;
-	my $self=shift;
-	die "I don't have data to work on (unit)" unless defined $self->hdr;
-	#say "$self type array ";
-	my $index=shift;
-	return _dimpar($self,'unit') if (! defined ($index) and wantarray);
-	return [_dimpar($self,'unit')] unless defined $index;
-	if (defined (my $v=shift)) {
-		$self->hdr->{$index}->{unit}=$v ;
-	}
-	return $self->hdr->{$index}->{unit}; 
-}
-
-sub idx {
-	#my $self=shift;
-	my $self=shift;
-	die "I don't have data to work on (idx)" unless defined $self->hdr;
-	#say "$self type array ";
-	my $index=shift;
-	return _dimpar($self,'index') if (! defined ($index) and wantarray);
-	return [_dimpar($self,'index')] unless defined $index;
-	if (defined (my $v=shift)) {
-		$v<0? 0: $v;
-		$v>=dimsize($self,$index)? dimsize($self,$index)-1 : $v;
-		$self->hdr->{$index}->{index}=$v ;
-	}
-	return $self->hdr->{$index}->{index}; 
-}
-
-sub vals { #individual values of dims -- like the position along an axis in world coords., echo times
-	my $self=shift;
-	my $d=shift; #dim
-	return unless $d;
-	$self->hdr->{$d}->{vals}=[] unless defined $self->hdr->{$d}->{vals};
-	#say "Vals: $d ",@{$self->hdr->{$d}->{vals}};
-	my $i=shift; #index or array ref
-	if (defined $i) { # set the whole array or access individual points
-		#say "vals: $d $i";
-		if (ref $i eq 'ARRAY' and dimsize($self,$d) == $#{$i}+1) { #ref to values array
-			barf "Array size does not match dimsize" unless ($#$i==dimsize($self,$d)-1);
-			$self->hdr->{$d}->{vals}=$i ;
-			spacing ($self,$d,0); #->hdr->{$d}->{spacing}=0;
-			$self->hdr->{$d}->{inc}=undef;
-			for (vals($self,$d)) {looks_like_number $_ || dnumeric($self,$d,0);} 
-
-			if (dnumeric($self,$d)){
-				barf "not numeric @$i" if ($$i[0] eq 'a');
-				dmin($self,$d,min(pdl $i));
-				dmax($self,$d,max(pdl $i));
-			} else {
-				$self->hdr->{$d}->{max}=undef;
-				$self->hdr->{$d}->{min}=undef;
-			}
-			#say "$d: setting vals @$i";
-		} else { #individual values 
-			my $v=shift; #value
-			if ( defined $v) { 
-				$self->hdr->{$d}->{vals}->[$i]=$v ;
-				spacing ($self,$d,0); #->hdr->{$d}->{spacing}=0;
-				$self->hdr->{$d}->{inc}=undef;
-				for (vals($self,$d)) {looks_like_number $_ || dnumeric($self,$d,0);} 
-				if (dnumeric($self,$d)){
-				#barf "not numeric $i" if ($i eq 'a');
-					dmin($self,$d,min(pdl $i));
-					dmax($self,$d,max(pdl $i));
-				} else {
-					$self->hdr->{$d}->{max}=undef;
-					$self->hdr->{$d}->{min}=undef;
-				}
-			}
-			if (spacing($self,$d)) {
-				return dmin($self,$d)+$i*dinc($self,$d);
-			}
-			return $self->hdr->{$d}->{vals}->[$i];
-		}
-	#} else {
-	}
-	if (spacing($self,$d)) {
-		return (list (dmin($self,$d)+dinc($self,$d)*sequence(dimsize($self,$d)))) if (wantarray);
-		return [list (dmin($self,$d)+dinc($self,$d)*sequence(dimsize($self,$d)))] unless wantarray;
-	}
-	if (wantarray) {
-	return @{$self->hdr->{$d}->{vals}};
-	} else {
-	return $self->hdr->{$d}->{vals};
-	}
 }
 
 1;
