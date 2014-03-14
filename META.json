@@ -1,5 +1,5 @@
 {
-   "abstract" : "work on named dimensions and meaningful ranges",
+   "abstract" : "Enhancement to PDL by using named dimensions. ",
    "author" : [
       "Ingo Schmid <ingosch@gmx.at>"
    ],
@@ -40,5 +40,5 @@
       }
    },
    "release_status" : "stable",
-   "version" : "0.005"
+   "version" : "0.005001"
 }

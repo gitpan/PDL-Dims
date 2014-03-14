@@ -1,5 +1,5 @@
 ---
-abstract: 'work on named dimensions and meaningful ranges'
+abstract: 'Enhancement to PDL by using named dimensions. '
 author:
   - 'Ingo Schmid <ingosch@gmx.at>'
 build_requires:
@@ -22,4 +22,4 @@ requires:
   PDL: 0
   Scalar::Util: 0
   perl: 5.012
-version: 0.005
+version: 0.005001

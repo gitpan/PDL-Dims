@@ -1,4 +1,8 @@
 Revision history for PDL-Dims
+0.005	2014-3-14
+
+	* pos2i was faulty for evenly-spaced values
+
 0.004	2014-2-24
 
 	* added a dummy=> option to initdim

@@ -5,7 +5,9 @@ package PDL::Dims;
 
 =head1 NAME
 
-PDL::Dims - work on named dimensions and meaningful ranges
+PDL::Dims - Enhancement to PDL by using named dimensions. 
+
+If PDL is about arrays, PDL::Dims turns them into hashes
 
 =head1 VERSION
 
@@ -13,7 +15,7 @@ Version 0.01
 
 =cut
 
-our $VERSION = '0.005';
+our $VERSION = '0.005001';
 
 use strict;
 
@@ -890,6 +892,9 @@ This module is an extension to PDL by giving the dimensions a meaningful name,
 values or ranges. The module also provides wrappers to perform most PDL
 operations based on named dimensions. Each dimension is supposed to have a unique name.
 
+If you prefer methods over functions, say 
+
+	bless $piddle, "PDL::Dims";
 
 Names of dims can be any string (x,y,z,t,city, country, lattitude, fruit,pet, ...)
 
@@ -1071,7 +1076,7 @@ removes a dminenso
 
 
 
-=head2 * copy_dim 
+=head2 copy_dim 
 
 copies the diminfo from one piddle to the next.
 
