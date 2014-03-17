@@ -1,4 +1,15 @@
 Revision history for PDL-Dims
+0.005002 
+	2014-3-17
+
+	* fixed pod-coverage.t test failure by removing -T switch.
+
+0.005001 2014-3-14
+	
+	* changelog updates
+
+	* documentation updates
+
 0.005	2014-3-14
 
 	* pos2i was faulty for evenly-spaced values

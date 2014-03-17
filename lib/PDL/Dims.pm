@@ -15,7 +15,7 @@ Version 0.01
 
 =cut
 
-our $VERSION = '0.005001';
+our $VERSION = '0.005002';
 
 use strict;
 
@@ -26,7 +26,11 @@ use parent 'Exporter','PDL';
 use Scalar::Util  qw/looks_like_number/;
 use PDL::NiceSlice;
 use Storable qw(dclone);
-use PDL;
+use PDL; 
+#use PDL::Lite;
+#use PDL::Ufunc qw(min max);
+#use PDL::Core qw(approx sclr);
+#no PDL::IO::Pic;
 use 5.012;
 our @EXPORT=qw(dnumeric vals spacing is_sane i2pos pos2i initdim idx didx dimsize dimname sln rmdim nagg dinc dmin dmax nreduce nop ncop copy_dim  active_slice nsqueeze);
 
