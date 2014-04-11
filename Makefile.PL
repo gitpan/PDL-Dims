@@ -19,6 +19,7 @@ WriteMakefile(
     },
     PREREQ_PM => {
     	'PDL'	=> 0,
+    	'PDL::NiceSlice'	=> 0,
 	'Scalar::Util' =>0,
 	'Exporter', =>0,
         #'ABC'              => 1.6,

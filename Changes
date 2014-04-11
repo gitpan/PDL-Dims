@@ -1,4 +1,10 @@
 Revision history for PDL-Dims
+0.006	2014-4-9
+
+	* fixed: initdim dropped last dim when inserting dim at pos < ndims
+
+	* added diminfo, extended PDL::info
+	
 0.005002 
 	2014-3-17
 

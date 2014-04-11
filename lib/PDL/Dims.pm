@@ -15,7 +15,7 @@ Version 0.01
 
 =cut
 
-our $VERSION = '0.005002';
+our $VERSION = '0.006';
 
 use strict;
 
@@ -32,7 +32,7 @@ use PDL;
 #use PDL::Core qw(approx sclr);
 #no PDL::IO::Pic;
 use 5.012;
-our @EXPORT=qw(dnumeric vals spacing is_sane i2pos pos2i initdim idx didx dimsize dimname sln rmdim nagg dinc dmin dmax nreduce nop ncop copy_dim  active_slice nsqueeze);
+our @EXPORT=qw(diminfo dnumeric vals spacing is_sane i2pos pos2i initdim idx didx dimsize dimname sln rmdim nagg dinc dmin dmax nreduce nop ncop copy_dim  active_slice nsqueeze);
 
 
 my @keys = qw(pos size num spacing unit min max inc vals index dummy);
@@ -104,7 +104,7 @@ sub dnumeric {
 	my $v=shift;
 	return [_dimpar($self,'num')] if (!$d and wantarray);
 	return [_dimpar($self,'num')] unless ($d);
-	barf ("Unknown dim $d") unless (ref ($self->hdr->{$d}) eq  'HASH');
+	return undef  unless (ref ($self->hdr->{$d}) eq  'HASH');
 	#warn "numeric? $d $v.", $self->hdr->{num} ;#if ($d eq 'a' and $v==1);
 	#barf "numeric? $d $v!", $self->hdr->{num} if ($d eq 'a' and $v==1);
 	if (defined $v) {
@@ -125,7 +125,7 @@ sub spacing {
 	my $v=shift; # value
 	return [_dimpar($self,'spacing')] if (!$d and wantarray);
 	return [_dimpar($self,'spacing')] unless ($d) ;
-	barf ("Unknown dim $d") unless (ref ($self->hdr->{$d}) eq  'HASH');
+	return undef  unless (ref ($self->hdr->{$d}) eq  'HASH');
 	if (defined $v) {
 		int $v;
 		$self->hdr->{$d}->{spacing}=$v; 
@@ -133,34 +133,46 @@ sub spacing {
 	return $self->hdr->{$d}->{spacing}; #, $r{$d};
 }
 
+sub diminfo {
+	my $self=shift;
+	my $str;
+	for my $n (dimname ($self)) {
+		$str.="$n\[".didx($self,$n)."]=>".dimsize($self,$n).", ";
+	}
+	$str.=$self->info;
+	return $str;
+}
 sub is_sane {
 	my $self=shift;
+	return "piddle" unless $self->isa('PDL');
 	return "name" unless dimname($self);
 	return "ndims" unless ($self->ndims==1+$#{dimname($self)});
-	say "global done.";
+	#say "global done.";
 	for my $n (@{dimname($self)}) {
+		next unless (chomp $n);
+	#	say "Checking dim $n for $self->hdr->{self}";
 		next unless (chomp $n);
 		return "size ".$n unless ($self->dim(didx($self,$n))==dimsize($self,$n));
 		return "index " .$n unless (idx($self,$n)<dimsize($self,$n));
 		return "index " .$n unless (idx($self,$n)>=0);
-		say "size and index";
+	#	say "size and index";
 		if (spacing($self,$n)) {
-			say "inc";
+	#		say "inc";
 			return "inc ".$n unless dinc($self,$n);
-			say dmax($self,$n), dmin($self,$n)+dinc($self,$n)*(dimsize($self,$n)-1);
-			say "minmax $n";
+	#		say dmax($self,$n), dmin($self,$n)+dinc($self,$n)*(dimsize($self,$n)-1);
+	#		say "minmax $n";
 			return "minmax ".$n unless (approx(dmax($self,$n)),
 				dmin($self,$n)+dinc($self,$n)*(dimsize($self,$n)-1));
-			say "pos: $n";
-			say (dmax($self,$n),i2pos($self,$n,pos2i($self,$n,dmax($self,$n))));
-			say "Index: ",(pos2i($self,$n,dmax($self,$n)));
-			say "Numeric: $n" unless (dnumeric( $self,$n));
+	#		say "pos: $n";
+	#		say (dmax($self,$n),i2pos($self,$n,pos2i($self,$n,dmax($self,$n))));
+	#		say "Index: ",(pos2i($self,$n,dmax($self,$n)));
+	#		say "Numeric: $n" unless (dnumeric( $self,$n));
 			return "pos ".$n unless (approx(dmax($self,$n),i2pos($self,$n,pos2i($self,$n,dmax($self,$n)))));
 		} else {
-			say "vals $n";
+	#		say "vals $n";
 			return "vals ".$n unless (dimsize($self,$n)==$#{vals($self,$n)}+1);
-			say "val_pos $n";
-			say "Numeric: $n" unless (eval {dnumeric( $self,$n)});
+	#		say "val_pos $n";
+	#		say "Numeric: $n" unless (eval {dnumeric( $self,$n)});
 			#say i2pos($self,$n,dimsize($self,$n)-1);
 			#say pos2i($self,$n,i2pos($self,$n,dimsize($self,$n)-1))," 1";
 			#say (dimsize($self,$n) , 1+
@@ -175,17 +187,18 @@ sub dimsize { # sets size for a dim
 	my $self=shift;
 	my $d=shift; # dimname
 	my $v=shift; # value
-	say "return all ", _dimpar($self,'size') if (!$d and wantarray);
+	#say "return all ", _dimpar($self,'size') if (!$d and wantarray);
 	return _dimpar($self,'size') if (!$d and wantarray);
 	return #([values %{$self->hdr->{dimsize}}]
 #		,[keys %{$self->hdr->{dimsize}}],
 		#)
 		[_dimpar($self,'size')]
 	unless ($d) ;
-	barf ("Unknown dim $d") unless (ref ($self->hdr->{$d}) eq  'HASH');
+	#barf ("Unknown dim $d") unless (ref ($self->hdr->{$d}) eq  'HASH');
+	return undef unless (ref ($self->hdr->{$d}) eq  'HASH');
 	#say "size $d $v",$self->info;
 	if (defined $v) {
-		barf ("Unknown dim $d") unless (ref ($self->hdr->{$d}) eq  'HASH');
+		return undef  unless (ref ($self->hdr->{$d}) eq  'HASH');
 		int $v;
 		$self->hdr->{$d}->{size}=$v; 
 		idx($self,$d,$v-1) if (idx($self,$d)>=$v-1);
@@ -214,7 +227,7 @@ sub dinc {
 	return [_dimpar($self,'inc')] unless $d;
 	if (defined $v) {
 		#say "dinc: $d $v";
-		barf ("Unknown dim $d") unless (ref $self->hdr->{$d} eq  'HASH');
+		return undef  unless (ref $self->hdr->{$d} eq  'HASH');
 		$self->hdr->{$d}->{inc}=$v; 
 		spacing ($self,$d,1);
 		dnumeric ($self,$d,1);
@@ -230,7 +243,7 @@ sub dmax {
 	return _dimpar($self,'max') if (!$d and wantarray);
 	return [_dimpar($self,'max')] unless $d;
 	#say "$d ".$self->hdr;
-	barf ("Unknown dim $d") if (defined $v and ref $self->hdr->{$d} ne  'HASH');
+	return undef  if (defined $v and ref $self->hdr->{$d} ne  'HASH');
 	$self->hdr->{$d}->{max}=$v if defined ($v);
 	return $self->hdr->{$d}->{max}; #, $r{$d};
 }
@@ -241,7 +254,7 @@ sub dmin {
 	my $v=shift; # min 
 	return _dimpar($self,'min') if (!$d and wantarray);
 	return [_dimpar($self,'min')] unless $d;
-	barf ("Unknown dim $d") if (defined $v and ref $self->hdr->{$d} ne  'HASH');
+	return undef  if (defined $v and ref $self->hdr->{$d} ne  'HASH');
 	#barf "Unknown dim $d" unless (ref $self->hdr->{$d} eq  'HASH');
 	$self->hdr->{$d}->{min}=$v if defined ($v);
 	return $self->hdr->{$d}->{min}; #, $r{$d};
@@ -254,11 +267,10 @@ sub didx { # set/get index - complementary to dimname
 	return _dimpar($self,'pos') if (!$d and wantarray);
 	return [_dimpar($self,'pos')] unless $d;
 	if (ref $d eq 'ARRAY') {
-
 		@$d;
 	} else {
 		my $n=shift; # new position
-		return (undef) if (ref $self->hdr->{$d} ne  'HASH');
+		return if (ref $self->hdr->{$d} ne  'HASH');
 		barf "Unknown dim $d" unless (ref $self->hdr->{$d} eq  'HASH');
 		$self->hdr->{$d}->{pos}=$n if defined $n;
 		#say "type $self idx $d ".$self->hdr->{$d}->{pos};
@@ -273,7 +285,7 @@ sub initdim {
 	$self->hdr; #ensure the header is intialised.
 	my %p=@_;
 	for my $k (keys %p) {
-		barf "Unkown parameter $k" unless ($k ~~ @keys);
+		barf "Unkown parameter $k $p{$k}" unless ($k ~~ @keys);
 	}
 	#say "header: ",(keys %{$self->gethdr},);
 	if (ref $self->hdr->{$d} eq  'HASH'){ # dimname exists and is a hash
@@ -285,19 +297,20 @@ sub initdim {
 			#say (keys (%{$self->hdr->{$d}}),'-keys');
 			warn "$d is defined but not a dim! ",%{$self->hdr->{$d}};
 		}
-	} else {
+	} else { 
 		$self->hdr->{ndims}=0 unless ($self->hdr->{ndims});
 		#say keys $self->hdr->{$d};
 		#say "pars: ",%p;
 		$self->hdr->{$d}=\%p;
 		#say "Creating dim $d at pos. $p{pos}; Ndims ".$self->hdr->{ndims};
-		if ((not $p{pos}) or ($p{pos}>$self->hdr->{ndims})) {
+		if ((!defined $p{pos}) or ($p{pos}>$self->hdr->{ndims})) {
 			$p{pos}=$self->hdr->{ndims};
 		}
 		if ($p{pos}<$self->hdr->{ndims}) {
 			for (my $i=$self->hdr->{ndims}-1;$i>=$p{pos};$i--) {
-				dimname($self,$i,dimname($self,$i-1)); # shift the position up!
-				didx($self,dimname($self,$i-1),$i);
+				#say dimname($self,$i)," initdim at pos $p{pos} ndims: ",$self->hdr->{ndims}, " $i";
+				dimname($self,$i+1,dimname($self,$i-0)); # shift the position up!
+				didx($self,dimname($self,$i),$i+1);
 			}		
 		}
 		didx ($self,$d,$p{pos});
@@ -305,7 +318,7 @@ sub initdim {
 		dimname ($self,$p{pos},$d);
 	}
 	$p{size}=$self->dim($p{pos}) unless ($p{size});
-	warn "Size does not mnatch piddle dim $p{size} ",$self->dim($p{pso}) 
+	warn "Size ($p{size}) does not mnatch piddle dim at pos $p{pos} ",$self->dim($p{pos}) 
 		unless ($p{size}==$self->dim($p{pos}));  
 	dimsize ($self,$d,($p{size}||1));
 	spacing($self,$d,1) unless defined spacing($self,$d);
@@ -347,13 +360,15 @@ sub initdim {
 		dnumeric($self,$d,);
 	}
 	$self->hdr->{ndims}++; 
+	#say "initdim: ndims ",$self->hdr->{ndims} , diminfo $self;
 	idx($self,$d,($p{index}||0));#dmin($self,$d)));
 	my $res=$self;
 	if ($p{dummy} ) { # insert dummy dimension of size size at pos.
-		say "dummy: $p{pos} $p{size}";
+	#	say "dummy: $p{pos} $p{size}";
 		$res=$res->dummy($p{pos},$p{size});
 	}
 	$res->sethdr($self->hdr_copy);
+	#say diminfo ($res);
 	return $res;
 	#say "Done. ($d)";
 }
@@ -379,13 +394,18 @@ sub rmdim {
 	my $d=shift;
 	return unless defined $d;
 	#say "removing $d ".didx($self,$d);;
-	splice @{$self->hdr->{dimnames}},didx($self,$d),1; # cut out the array
-	for my $i (didx($self,$d)..$self->hdr->{ndims}-1) { 
+	my $idx=didx($self,$d);
+	#say @{$self->hdr->{dimnames}},didx($self,$d); # cut out the array
+	splice @{$self->hdr->{dimnames}},$idx,1; # cut out the array
+	#say @{$self->hdr->{dimnames}},didx($self,$d); # cut out the array
+	for my $i ($idx..$self->hdr->{ndims}-1) { 
 		didx($self,dimname($self,$i),$i);	#update position of following dims
 	}
 	delete $self->hdr->{$d};
-	die "This should be undefined! ",$self->hdr->{$d} if defined ($self->hdr->{$d});
+	barf "This should be undefined! ",$self->hdr->{$d} if defined ($self->hdr->{$d});
+	#barf "This should be undefined! ",$self->hdr->{dimnamesd} if defined ($self->hdr->{$d});
 	$self->hdr->{ndims}--;
+	#say "rmdim: ",diminfo $self;
 }
 
 sub unit {
@@ -396,7 +416,8 @@ sub unit {
 	my $index=shift;
 	return _dimpar($self,'unit') if (! defined ($index) and wantarray);
 	return [_dimpar($self,'unit')] unless defined $index;
-	barf ("Unknown dim $index") unless (ref ($self->hdr->{$index}) eq  'HASH');
+	#barf ("Unknown dim $index") 
+	return undef unless (ref ($self->hdr->{$index}) eq  'HASH');
 	if (defined (my $v=shift)) {
 		$self->hdr->{$index}->{unit}=$v ;
 	}
@@ -411,11 +432,12 @@ sub idx {
 	my $index=shift;
 	return _dimpar($self,'index') if (! defined ($index) and wantarray);
 	return [_dimpar($self,'index')] unless defined $index;
-	barf ("Unknown dim $index") unless (ref ($self->hdr->{$index}) eq  'HASH');
+	
+	return undef unless (ref ($self->hdr->{$index}) eq  'HASH');
 	if (defined (my $v=shift)) {
 		$v<0? 0: $v;
 		$v>=dimsize($self,$index)? dimsize($self,$index)-1 : $v;
-		$self->hdr->{$index}->{index}=$v ;
+		$self->hdr->{$index}->{index}=int $v ;
 	}
 	return $self->hdr->{$index}->{index}; 
 }
@@ -544,25 +566,33 @@ sub nsqueeze {
 }
 
 sub nagg { # aggregate function
+	#no PDL::NiceSlice;
 	my $self=shift;
+	barf "nagg: not a piddle!" unless $self->isa('PDL');
 	my $op=shift; # 
 	my $d=shift; # dimension
 	#say "nagg: ",dimname($self);
 	return unless (defined didx($self,$d));
 	my $res=$self->mv(didx($self,$d),0);
-	$res=pdl($res->$op(@_));
+	#say $res->info;
+	if ($res->can($op)) {
+		$res=$res->$op(@_);
+	} else { 
+		$res=&$op($res,@_);
+	}
 	barf "nagg: Result undefined for $op on $d." unless defined $res;
 	if (eval {$res->nelem}  ) {
-		barf "not an aggregate function! $op" if ($self->nelem==$res->nelem);
+		barf "not an aggregate function! $op", $self->info,$res->info if ($self->ndims==$res->ndims);
 		#if ($res->nelem==$self->nelem-1)
 		if ($res->ndims==$self->ndims-1)
 		{
 			$res->sethdr($self->hdr_copy);
-			say "nagg: ",dimname($self);
-			say "nagg: ",dimname($res);
+	#		say "nagg: $d ",dimname($self);
 			rmdim ($res,$d);
+	#		say "nagg: $d ",dimname($res);
 		}
 	}
+	#say "nagg: ",diminfo($res);
 	return ($res); 
 }
 # boundaries of dims in appropriate units (mm, s, ..)
@@ -572,8 +602,8 @@ sub active_slice { #
 	my @except=@_;
 	my @idx=list (rint(pdl idx($self)));
 	#say "j  ".idx($img{$type});
-	my @n=@{dimname($self)};
-	barf "not consistent size $#n ",$self->ndims-1 unless ($#n==$self->ndims-1);
+	my @n=(dimname($self));
+	barf "active_slice: not consistent size $#n ",$self->ndims-1 unless ($#n==$self->ndims-1);
 	#say "self: @n";
 	my $str;
 	my @rm;
@@ -585,7 +615,7 @@ sub active_slice { #
 		}
 		$str.=',' unless ($i==$#n);
 	}
-	say "$str ",$self->info;
+	#say "$str ",$self->info;
 	my $ret=$self->slice($str); #->nsqueeze;	
 	$ret+=0;
 	$ret->sethdr($self->hdr_copy);
@@ -614,7 +644,8 @@ sub nreduce { # analogue to PDL::Reduce, perform operation on named rather than 
 	my @list=@_;
 	my @d=map {didx($self,$_)} @list;
 	#say "reduce $op @d (@list)";
-	my $ret= $self->reduce($op,@d);
+	my $ret;
+	$ret= $self->reduce($op,@d);
 	$ret->sethdr($self->hdr_copy);
 	for my $d (@list) {
 	#	say "removing $d";
@@ -642,7 +673,11 @@ sub nop { # wrapper to functions like sin, exp, rotate operating on one named di
 		#say "schifing $res by $s";
 	} else {
 		#say "$op, @a";
-		$res=$res->$op(@a,);
+		if ($res->can($op)) {
+			$res=$res->$op(@a,);
+		} else { 
+			$res=&$op($res,@a);
+		}
 	}
 	$res=$res->mv(0,didx($self,$dim));
 	$res->sethdr($self->hdr_copy);
@@ -656,21 +691,22 @@ sub ncop { # named combine operation -- +*-/ ...
 	my $other=shift;
 	my $op=shift;
 	my $res;
+	#say "ncop: start self, other, ",$self->info, $other->info;
 	unless (eval {$self->isa('PDL')}) { # self is a scalar
-		$res=pdl($self)->$op($other,@_);
+		$res=&$op(pdl($self),$other,@_);
 		$res->sethdr($other->hdr_copy) unless (eval {$other->isa('PDL')});# both are scalar
 		barf "ncop: $op changed dimensions. Use nagg or nreduce for aggregate functions"
 			unless ($other->nelem==$res->nelem);
 		return $res;
 	}
 	unless (eval {$other->isa('PDL')}) { # other is a scalar
-		$res=$self->$op($other);
+		$res=&$op($self,$other,@_);
 		barf "ncop: $op changed dimensions. Use nagg or nreduce for aggregate functions"
 			unless ($self->nelem==$res->nelem);
 		$res->sethdr($self->hdr_copy);
 		return $res;
 	}
-	say $self->info, $other->info;
+	#say $self->info, $other->info;
 	my @d=@{dimname($self)};
 	my @e=@{dimname($other)};
 	#say "self @d other @e";
@@ -733,10 +769,14 @@ sub ncop { # named combine operation -- +*-/ ...
 	for my $n (0..$#tother) { # fill in dummy dims
 		$ns=$ns->dummy($#nself+1,1);
 	}
-	#say "ncop: ",$ns->info,$no->info;
+	#say "ncop: @aother @aself ",$ns->info,$no->info;
 	#say $self->info,$other->info;
 	#### perform the operation
-	$res=$ns->$op($no,@_);
+	if ($ns->can($op)) {
+		$res=$ns->$op($no,@_);
+	} else{ ($res=&$op($ns,$no,@_)) ;
+	} #else {
+	#	barf "This operation $op is neither a known method or function";
 	#say "ncop: ",$ns->info,$res->info;
 	#barf "ncop: $op changed dimensions. Use nagg or nreduce for aggregate functions"
 		#unless ($ns->nelem==$res->nelem);
@@ -744,24 +784,31 @@ sub ncop { # named combine operation -- +*-/ ...
 	#say "keys res:",keys %{$res->hdr};
 	#say %{$res->gethdr},"header.";
 	$res->sethdr($self->hdr_copy);
-	#say "keys res:",keys %{$res->hdr};
-	#say "keys self",keys %{$self->hdr};
-	#say "keys other",keys %{$other->hdr};
-	#say "res: ",@{dimname($res)};
+	#say "keys self: ",%{$self->hdr};
+	#say "keys other: ",%{$other->hdr};
+	#say "keys res: ",%{$res->hdr};
+	#say "self: ",$self->hdr->{ndims};
+	#say "other ",$other->hdr->{ndims};
+	#say "res ",$res->hdr->{ndims};
 	#say "self: ",@{dimname($self)};
 	#say "other: ",@{dimname($other)};
+	#say "res: ",@{dimname($res)};
 	#$other->hdr;
 	my $i=$self->ndims;
 	for my $ds (0..$#add) {
 		#say "copy $add[$ds]",keys %{$res->hdr};
 		#initdim($res,$add[$ds]);
 		copy_dim($other,$res,$add[$ds],$i);
-	#say @{dimname($res)};
+	#	say @{dimname($res)};
 		$i++;
 	}
+	$res->hdr->{ndims}=$i;
 	#say @{dimname($res)};
 	#say "Co @co";
 	#say "ncop: returning ... ".$res->info;
+	my $err=is_sane($res);
+	#barf "ncop: sanity check failed $err";
+	#say "ncop ",diminfo($res);
 	return $res;
 }
 
@@ -772,12 +819,13 @@ sub sln { # returns a slice by dimnames and patterns
 	#say "sln: ".$self->hdr->{dimnames},%s;
 	#say ("dimnames @{$self->dimname}");
 	my @n=@{$s{names}||dimname($self)};
+	#say "dims @n";
 	for my $i (0.. $#n) {
-		#say "$i $n[$i] $idx[$i]";
+	#	say "$i $n[$i] $s{$n[$i]}";
 		$str.=$s{$n[$i]} if defined ($s{$n[$i]});
 		$str.=',' unless ($i==$#n);
 	}
-	#say "$str";
+	#say "sln: slice string $str";
 	my $ret=$self->slice($str);
 	#say $ret->info;
 	$ret->sethdr($self->hdr_copy);
@@ -830,7 +878,7 @@ sub sln { # returns a slice by dimnames and patterns
 		}
 		#dimsize($ret, $n,
 	}
-	#say "sln: return ",@{dimname($ret)};
+	#say "sln: return ",diminfo($ret);
 	return $ret;
 
 }
@@ -957,6 +1005,13 @@ if no dim is given, an array reference to all values are returned.
 
 Otherwise, it returns the given value for a particular $dim, setting it to $value if defined.
 
+
+=head2 diminfo
+
+
+	$infostr = diminfo($piddle);
+	
+An extended version of PDLs info, showing dimnames and sizes (from header). 
 
 =head2 dimsize 
 
@@ -1164,6 +1219,7 @@ A wrapper to squeeze. It makes the appropriate header updates (i.e. calls to rmd
 A sanity check for piddles. This is your friend when working with PDL::Dims!
 
 	$err=is_sane($piddle)
+
 
 returns 0 upon success, otherwise the first inconsisteny found is returned. This may
 change in future releases.
