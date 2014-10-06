@@ -15,7 +15,7 @@ Version 0.01
 
 =cut
 
-our $VERSION = '0.006';
+our $VERSION = '0.008';
 
 use strict;
 
@@ -364,7 +364,7 @@ sub initdim {
 	idx($self,$d,($p{index}||0));#dmin($self,$d)));
 	my $res=$self;
 	if ($p{dummy} ) { # insert dummy dimension of size size at pos.
-	#	say "dummy: $p{pos} $p{size}";
+		say "dummy: $p{pos} $p{size}";
 		$res=$res->dummy($p{pos},$p{size});
 	}
 	$res->sethdr($self->hdr_copy);
@@ -575,7 +575,7 @@ sub nagg { # aggregate function
 	return unless (defined didx($self,$d));
 	my $res=$self->mv(didx($self,$d),0);
 	#say $res->info;
-	if ($res->can($op)) {
+	if (eval {$res->can($op)}) {
 		$res=$res->$op(@_);
 	} else { 
 		$res=&$op($res,@_);
@@ -662,9 +662,11 @@ sub nop { # wrapper to functions like sin, exp, rotate operating on one named di
 	my @a=@_;
 	my @n=@{dimname($self)};
 	#say "nop: (self) @n";
+	#say "nop: ",diminfo $self;
 	#my $arg=shift; # suitably shaped second argument 
 	#say $self;
 	#say "dim $dim, pos ",didx($self,$dim)," ",%{$self->hdr->{$dim}};
+	$dim=dimname($self,0) unless defined $dim; # trivial 
 	my $res=$self->mv(didx($self,$dim),0);
 	if ($op eq 'rotate'){
 		my $s=shift;
@@ -672,8 +674,8 @@ sub nop { # wrapper to functions like sin, exp, rotate operating on one named di
 		$res=$res->rotate($s);
 		#say "schifing $res by $s";
 	} else {
-		#say "$op, @a";
-		if ($res->can($op)) {
+		#say "nop: ",diminfo $self,"op: $op, @a";
+		if (eval {$res->can($op)}) {
 			$res=$res->$op(@a,);
 		} else { 
 			$res=&$op($res,@a);
@@ -693,14 +695,25 @@ sub ncop { # named combine operation -- +*-/ ...
 	my $res;
 	#say "ncop: start self, other, ",$self->info, $other->info;
 	unless (eval {$self->isa('PDL')}) { # self is a scalar
-		$res=&$op(pdl($self),$other,@_);
-		$res->sethdr($other->hdr_copy) unless (eval {$other->isa('PDL')});# both are scalar
+		$self=pdl($self);
+		if (eval {$self->can($op)}) {
+			$res=$self->$op($other,@_);
+		} else {
+			$res=&$op($self,$other,@_);
+		}		
+		$res->sethdr($other->hdr_copy) if (eval {$other->isa('PDL')});# both are scalar
+		#say "ncop: other ",diminfo $other;
 		barf "ncop: $op changed dimensions. Use nagg or nreduce for aggregate functions"
 			unless ($other->nelem==$res->nelem);
+		#say "ncop: res ",diminfo $res;
 		return $res;
 	}
 	unless (eval {$other->isa('PDL')}) { # other is a scalar
-		$res=&$op($self,$other,@_);
+		if (eval {$self->can($op)}) {
+			$res=$self->$op($other,@_);
+		} else {
+			$res=&$op($self,$other,@_);
+		}
 		barf "ncop: $op changed dimensions. Use nagg or nreduce for aggregate functions"
 			unless ($self->nelem==$res->nelem);
 		$res->sethdr($self->hdr_copy);
@@ -762,8 +775,8 @@ sub ncop { # named combine operation -- +*-/ ...
 	push @aother,@tother if defined ($tother[0]);
 	push @aself,@nself if defined ($nself[0]);
 	push @aself,@tself if defined ($tself[0]);
-	my $ns=$self->sever->reorder(@aself);
-	my $no=$other->sever->reorder(@aother);
+	my $ns=$self->reorder(@aself);
+	my $no=$other->reorder(@aother);
 	#say "keys self",keys %{$self->hdr};
 	#say "keys other",keys %{$other->hdr};
 	for my $n (0..$#tother) { # fill in dummy dims
@@ -772,9 +785,12 @@ sub ncop { # named combine operation -- +*-/ ...
 	#say "ncop: @aother @aself ",$ns->info,$no->info;
 	#say $self->info,$other->info;
 	#### perform the operation
-	if ($ns->can($op)) {
+	if (eval {$ns->can($op)}) {
+		#unshift  @_,0 if ($op eq "atan2" and $_[0] != 0);
 		$res=$ns->$op($no,@_);
-	} else{ ($res=&$op($ns,$no,@_)) ;
+	} else{ 
+		#unshift  @_,0 if ($op eq "atan2");# and $_[0] != 0);
+		$res=&$op($ns,$no,@_) ;
 	} #else {
 	#	barf "This operation $op is neither a known method or function";
 	#say "ncop: ",$ns->info,$res->info;
@@ -816,7 +832,7 @@ sub sln { # returns a slice by dimnames and patterns
 	my $self=shift;
 	my %s=@_; # x=>'0:54:-2', t=>47, ... #
 	my $str;
-	#say "sln: ".$self->hdr->{dimnames},%s;
+	#say "sln: args @_, ".$self->hdr->{dimnames},%s;
 	#say ("dimnames @{$self->dimname}");
 	my @n=@{$s{names}||dimname($self)};
 	#say "dims @n";
@@ -839,9 +855,9 @@ sub sln { # returns a slice by dimnames and patterns
 			next;
 		}
 		$str=~m/([+-]?\d+)(:([+-]?\d+)(:([+-]?\d+))?)?/;
-		#say "$d: 1 $1 2 $2 3 $3 4 $4 5 $5";
+	#	say "$d: 1 $1 2 $2 3 $3 4 $4 5 $5";
 		my $step=int ($5)||1;
-		my $size=int abs(($3-$1)/$step)+1; #
+		my $size=int abs((($3||$1)-$1)/$step)+1; #
 		my $min=int min pdl($1,$3);
 		my $max=int max pdl($1,$3);
 		#say "min $min max $max size $size str $str vals ";
@@ -851,23 +867,28 @@ sub sln { # returns a slice by dimnames and patterns
 			dmin($ret,$d,dmin($self,$d)+$step*dinc($self,$d)*($min % dimsize($self,$d)));
 			dmax($ret,$d,dmin($self,$d)+$step*dinc($self,$d)*(dimsize($ret,$d)));
 			#dmax($ret,$d,vals($self,$d,$max % dimsize($self,$d)));
-			idx($ret,$d,sclr (pdl(idx($self,$d))->clip(dmin($ret,$d),dmax($ret,$d)))); 
+			idx($ret,$d,sclr (pdl(idx($self,$d))->clip(0,dimsize($ret,$d)-1))); 
+			say "sln: idx ($d):",idx($ret,$d);
 		} else {
 		#say "min $min max $max size $size str $str vals ";
 			#say "vals $d: ",vals($self,$d);
+			
 			if (dnumeric($self,$d)) {
 				my $v=pdl([vals($self,$d),])->($str) ;
-				vals($ret,$d,vals($self,$d,[list $v]));
+				vals($ret,$d,[vals($self,$d,[list $v])]);
 				idx($ret,$d,sclr (pdl(idx($self,$d))->clip(dmin($ret,$d),dmax($ret,$d)))); 
 			} else {
 				my $v=sequence(dimsize($self,$d))->($str);
-				#say "2: $d size $size str $str" ,$v->info;
-				for my $ix (0.. $v->ndims-1) {
+				my @values;
+				#say "vals: $d size $size str $str" ,$v->info;
+				for my $ix (0.. $v->nelem-1) {
 					#say "$ix $v ",$v($ix);
-					vals($ret,$d,$ix,vals($self,$d,sclr ($v($ix))));
+					push @values,vals($self,$d,sclr ($v($ix)));
 					#say "$ix $v ",$v($ix);
 				}
+				vals($ret,$d,[@values]);
 				idx($ret,$d,0);
+				#say "sln, vals ($d): ", vals($ret,$d);
 			}
 			#vals($res,$d,list ();
 

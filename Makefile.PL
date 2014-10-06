@@ -16,6 +16,7 @@ WriteMakefile(
     },
     BUILD_REQUIRES => {
         'Test::More' => 0,
+        'Test::Simple' => 0,
     },
     PREREQ_PM => {
     	'PDL'	=> 0,

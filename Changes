@@ -1,4 +1,23 @@
 Revision history for PDL-Dims
+0.008 	2014-10-3
+
+	* ncop: fixed logic when 1st arg was a scalar
+
+	* nop: now can be called without dimension, it then works on the first.
+
+	* ->can() was not always encaplsulated in eval{ }, causing some unexpected crashes.
+
+	2014-9-30
+
+	* ncop can handle cases with non-piddle arguments better now, e.g. mutliply by scalar
+
+
+
+0.007 	2014-9-26
+
+	* index could be out of bounds in sln, fixed?
+
+
 0.006	2014-4-9
 
 	* fixed: initdim dropped last dim when inserting dim at pos < ndims

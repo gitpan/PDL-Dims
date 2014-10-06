@@ -7,7 +7,7 @@ use PDL;
 #use lib 'lib';
 use PDL::Dims ; #qw/initdim/;
 use PDL::NiceSlice;
-use Test::Simple tests => 8;
+use Test::Simple tests => 10;
 
 sub my_add {
 	return $_[0]+$_[1];
@@ -30,4 +30,8 @@ ok(sclr(nop($a,'rotate','y',1)->(1,0))==5,'rotate');
 ok(max (ncop($a,$b,'plus',0))==5,'ncop_method');
 ok(max (ncop($a,$b,\&my_add))==5,'ncop_function');
 ok((nreduce ($a,'add','y','x'))==15,'nreduce');
+ok((nop($a,'cos',)->(1,2)==cos(5)),'nop_cos');
+$a(0,1).=33;
+(my $nix=sln($a,x=>0,y=>1)).=33;
+ok(sclr(sln($a,x=>0,y=>1))==33 ,'sln-assign'); #$a(0,1;-)**2,'sln');
 #diag( "Testing PDL::Dims $PDL::Dims::VERSION, Perl $], $^X" );
