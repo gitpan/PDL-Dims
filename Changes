@@ -1,4 +1,8 @@
 Revision history for PDL-Dims
+0.009	2014-10-8
+
+	* sln: dmax was often wrong, fixed
+
 0.008 	2014-10-3
 
 	* ncop: fixed logic when 1st arg was a scalar

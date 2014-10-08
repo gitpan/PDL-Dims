@@ -15,7 +15,7 @@ Version 0.01
 
 =cut
 
-our $VERSION = '0.008';
+our $VERSION = '0.009';
 
 use strict;
 
@@ -342,7 +342,7 @@ sub initdim {
 		#say "equal spaced, numeric values $d";
 		$p{num}=1 unless defined $p{num};
 		if ($p{inc} and $p{max}) {
-			barf ("Increment and maximum don't fit! ($d $p{min} $p{max} $p{inc} "
+			barf ("Increment and maximum don't fit! ($d min $p{min} max $p{max} inc $p{inc} "
 				.dimsize($self,$d))
 				unless (approx(pdl ($p{max}-$p{min}) , pdl((dimsize($self,$d)-1)*$p{inc} )));
 		} elsif ($p{inc}) {
@@ -865,7 +865,7 @@ sub sln { # returns a slice by dimnames and patterns
 		if (spacing ($self,$d)) { 
 			dinc($ret,$d,$step*dinc($self,$d));
 			dmin($ret,$d,dmin($self,$d)+$step*dinc($self,$d)*($min % dimsize($self,$d)));
-			dmax($ret,$d,dmin($self,$d)+$step*dinc($self,$d)*(dimsize($ret,$d)));
+			dmax($ret,$d,dmin($ret,$d)+$step*dinc($self,$d)*(dimsize($ret,$d)-1));
 			#dmax($ret,$d,vals($self,$d,$max % dimsize($self,$d)));
 			idx($ret,$d,sclr (pdl(idx($self,$d))->clip(0,dimsize($ret,$d)-1))); 
 			say "sln: idx ($d):",idx($ret,$d);
