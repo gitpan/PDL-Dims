@@ -15,7 +15,7 @@ Version 0.01
 
 =cut
 
-our $VERSION = '0.009';
+our $VERSION = '0.010';
 
 use strict;
 
@@ -597,7 +597,7 @@ sub nagg { # aggregate function
 }
 # boundaries of dims in appropriate units (mm, s, ..)
 
-sub active_slice { # 
+sub active_slice :lvalue { # 
 	my $self=shift;
 	my @except=@_;
 	my @idx=list (rint(pdl idx($self)));
@@ -634,7 +634,7 @@ sub active_slice { #
 		}
 	}
 	#say "active_slice: ",$self->info," return ",@{dimname($ret)},$ret->info;
-	return $ret;
+	$ret;
 }
 
 sub nreduce { # analogue to PDL::Reduce, perform operation on named rather than numbered dims
@@ -828,7 +828,7 @@ sub ncop { # named combine operation -- +*-/ ...
 	return $res;
 }
 
-sub sln { # returns a slice by dimnames and patterns
+sub sln  :lvalue { # returns a slice by dimnames and patterns
 	my $self=shift;
 	my %s=@_; # x=>'0:54:-2', t=>47, ... #
 	my $str;
@@ -900,7 +900,7 @@ sub sln { # returns a slice by dimnames and patterns
 		#dimsize($ret, $n,
 	}
 	#say "sln: return ",diminfo($ret);
-	return $ret;
+	$ret;
 
 }
 

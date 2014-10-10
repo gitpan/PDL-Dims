@@ -32,6 +32,7 @@ ok(max (ncop($a,$b,\&my_add))==5,'ncop_function');
 ok((nreduce ($a,'add','y','x'))==15,'nreduce');
 ok((nop($a,'cos',)->(1,2)==cos(5)),'nop_cos');
 $a(0,1).=33;
-(my $nix=sln($a,x=>0,y=>1)).=33;
+sln($a,x=>0,y=>1).=33;
+#(my $nix=sln($a,x=>0,y=>1)).=33;
 ok(sclr(sln($a,x=>0,y=>1))==33 ,'sln-assign'); #$a(0,1;-)**2,'sln');
 #diag( "Testing PDL::Dims $PDL::Dims::VERSION, Perl $], $^X" );

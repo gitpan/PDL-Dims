@@ -1,4 +1,9 @@
 Revision history for PDL-Dims
+0.010	2014-10-10
+
+	* sln and active_slice are now declared as lvalue subroutines, allowing assignment - 
+	  Thanks to David Martens!
+
 0.009	2014-10-8
 
 	* sln: dmax was often wrong, fixed
