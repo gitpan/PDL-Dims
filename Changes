@@ -1,4 +1,13 @@
 Revision history for PDL-Dims
+
+0.011	2014-11-25
+
+	* copy_dim now works for all dims at once when no dim is supplied.
+
+	2014-11-20
+	
+	* nreduce is now lvalue sub
+
 0.010	2014-10-10
 
 	* sln and active_slice are now declared as lvalue subroutines, allowing assignment - 

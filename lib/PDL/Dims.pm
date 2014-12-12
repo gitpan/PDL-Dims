@@ -9,13 +9,9 @@ PDL::Dims - Enhancement to PDL by using named dimensions.
 
 If PDL is about arrays, PDL::Dims turns them into hashes
 
-=head1 VERSION
-
-Version 0.01
-
 =cut
 
-our $VERSION = '0.010';
+our $VERSION = '0.011';
 
 use strict;
 
@@ -151,7 +147,6 @@ sub is_sane {
 	for my $n (@{dimname($self)}) {
 		next unless (chomp $n);
 	#	say "Checking dim $n for $self->hdr->{self}";
-		next unless (chomp $n);
 		return "size ".$n unless ($self->dim(didx($self,$n))==dimsize($self,$n));
 		return "index " .$n unless (idx($self,$n)<dimsize($self,$n));
 		return "index " .$n unless (idx($self,$n)>=0);
@@ -318,7 +313,7 @@ sub initdim {
 		dimname ($self,$p{pos},$d);
 	}
 	$p{size}=$self->dim($p{pos}) unless ($p{size});
-	warn "Size ($p{size}) does not mnatch piddle dim at pos $p{pos} ",$self->dim($p{pos}) 
+	warn "initdim, dim $d: Size ($p{size}) does not mnatch piddle dim at pos $p{pos} ",$self->dim($p{pos}) 
 		unless ($p{size}==$self->dim($p{pos}));  
 	dimsize ($self,$d,($p{size}||1));
 	spacing($self,$d,1) unless defined spacing($self,$d);
@@ -364,7 +359,7 @@ sub initdim {
 	idx($self,$d,($p{index}||0));#dmin($self,$d)));
 	my $res=$self;
 	if ($p{dummy} ) { # insert dummy dimension of size size at pos.
-		say "dummy: $p{pos} $p{size}";
+		#say "dummy: $p{pos} $p{size}";
 		$res=$res->dummy($p{pos},$p{size});
 	}
 	$res->sethdr($self->hdr_copy);
@@ -377,16 +372,20 @@ sub copy_dim {
 	my $old=shift;
 	my $new=shift;
 	my $dim=shift;
-	return unless $dim;
-	
-	#initdim($new,'dummy');
-	#say "old: $old; new: $new; dim: $dim";
-	my $d=dclone($old->hdr->{$dim});
-	#say "old $old new $new dim %$d";
-	#say "Copy to new: ",@{dimname $new};
-	#say %$d;
-	$$d{pos}=shift;
-	initdim($new,$dim,%$d);
+	unless (exists $old->hdr->{$dim}) {
+		my $err=is_sane($new);
+		warn "copy_dims: inconsistent dims (input), $err ! ",diminfo $old if ($err);
+		for my $dim (dimname($old),){ 
+			my $d=dclone($old->hdr->{$dim});
+			initdim($new,$dim,%$d);
+		}
+		$err=is_sane($new);
+		warn "copy_dims: inconsistent dims (new), $err ! ",diminfo $new if ($err);
+	} else {
+		my $d=dclone($old->hdr->{$dim});
+		$$d{pos}=shift;
+		initdim($new,$dim,%$d);
+	}
 }
 
 sub rmdim {
@@ -542,7 +541,7 @@ sub pos2i{
 	}
 }
 
-sub nsqueeze {
+sub nsqueeze :lvalue {
 	my $self=shift;
 	#my @except=@_;
 	#say $ret->info;
@@ -868,7 +867,7 @@ sub sln  :lvalue { # returns a slice by dimnames and patterns
 			dmax($ret,$d,dmin($ret,$d)+$step*dinc($self,$d)*(dimsize($ret,$d)-1));
 			#dmax($ret,$d,vals($self,$d,$max % dimsize($self,$d)));
 			idx($ret,$d,sclr (pdl(idx($self,$d))->clip(0,dimsize($ret,$d)-1))); 
-			say "sln: idx ($d):",idx($ret,$d);
+			#say "sln: idx ($d):",idx($ret,$d);
 		} else {
 		#say "min $min max $max size $size str $str vals ";
 			#say "vals $d: ",vals($self,$d);
